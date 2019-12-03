@@ -22,9 +22,11 @@ fun main() {
     }.map {
         println(it)
         it
+    }.flatMap {
+        asyncCall()
+    }.map {
+        println(it)
     }.subscribe()
-
-
 }
 
 object IntStreamSubscriber: Subscriber<Int> {

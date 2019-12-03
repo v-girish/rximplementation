@@ -31,6 +31,10 @@ open class StreamPublisher<T> protected constructor(): Publisher<T> {
         return StreamMapper(this, mapper)
     }
 
+    fun <R> flatMap( mapper: (T) -> StreamPublisher<R> ): StreamPublisher<R> {
+        return FlatMapStreamMapper(this, mapper)
+    }
+
     open fun subscribe() {
 
     }
@@ -124,6 +128,37 @@ class LambdaSubscriber<T,R>(private val subscriber: Subscriber<in R>?, private v
     override fun onNext(t: T) {
         val r = mapper.invoke(t)
         subscriber?.onNext(r)
+    }
+
+    override fun onError(t: Throwable?) {
+        throw t!!
+    }
+
+}
+
+class FlatMapStreamMapper<T, R>(private val actual: StreamPublisher<T>, private val flatMapper: (T) -> StreamPublisher<R>)
+    : StreamPublisher<R>() {
+    override fun subscribe() {
+        actual.subscribe(LambdaFlatMapSubscriber(null, flatMapper))
+    }
+    override fun subscribe(subscriber: Subscriber<in R>?) {
+        actual.subscribe(LambdaFlatMapSubscriber(subscriber, flatMapper))
+    }
+}
+
+class LambdaFlatMapSubscriber<T, R>(private val subscriber: Subscriber<in R>?, private val flatMapper: (T) -> StreamPublisher<R>) : Subscriber<T> {
+    override fun onComplete() {
+        subscriber?.onComplete()
+    }
+
+    override fun onSubscribe(s: Subscription) {
+        subscriber?.onSubscribe(s)
+        s.request(Long.MAX_VALUE)
+    }
+
+    override fun onNext(t: T) {
+        val r = flatMapper.invoke(t)
+        if(subscriber!=null)r.subscribe(subscriber)
     }
 
     override fun onError(t: Throwable?) {
